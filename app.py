@@ -378,3 +378,12 @@ def server_error(e):
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
+    
+# Flask app khởi tạo
+app = Flask(__name__)
+CORS(app)
+
+# Các routes xử lý API ở đây...
+
+# Alias cho Gunicorn khi Procfile bị sai
+your_application = app  # Alias for Gunicorn compatibility    
