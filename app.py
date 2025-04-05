@@ -8,6 +8,7 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 from flasgger import Swagger
 import base64
+from bs4 import BeautifulSoup
 import re
 
 # Load environment variables
@@ -244,57 +245,60 @@ def suggest_category():
             'details': str(e)
         }), 500
 
-@app.route('/analytics', methods=['GET'])
-def analyze_listing_score():
+@app.route('/analyze-listing', methods=['POST'])
+def analyze_listing():
     """
-    Analyze listing score based on title, price, and category
+    Analyze an eBay listing URL and extract title, keywords, and snippet.
     ---
-    parameters:
-      - name: title
-        in: query
-        type: string
-        required: true
-        description: Listing title
-      - name: price
-        in: query
-        type: number
-        required: true
-        description: Listing price
-      - name: category
-        in: query
-        type: string
-        required: false
-        description: Listing category
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              url:
+                type: string
+                description: eBay listing URL
+            required:
+              - url
     responses:
       200:
-        description: Listing score and improvement tips
+        description: Extracted listing data
       400:
-        description: Bad request
+        description: Invalid input or listing URL
       500:
         description: Server error
     """
     try:
-        title = request.args.get('title')
-        price_str = request.args.get('price')
-        category = request.args.get('category')
+        data = request.get_json()
+        url = data.get("url")
+        if not url:
+            return jsonify({"error": "Missing URL"}), 400
+
+        response = requests.get(url, headers={"User-Agent": "Mozilla/5.0"})
+        if response.status_code != 200:
+            return jsonify({"error": "Listing URL not available or removed"}), 400
+
+        soup = BeautifulSoup(response.text, "html.parser")
+        title = soup.find("h1")
+        desc_div = soup.find("div", id="desc_div") or soup.find("div", id="viTabs_0_is")
         
-        if not title:
-            return jsonify({'error': 'Listing title is required'}), 400
-        
-        if not price_str:
-            return jsonify({'error': 'Listing price is required'}), 400
-        
-        try:
-            price = float(price_str)
-        except ValueError:
-            return jsonify({'error': 'Price must be a valid number'}), 400
-        
-        # Perform listing analysis
-        # This is a simplified example of what could be a more complex analysis
-        
-        # Initialize score and tips
-        score = 0
-        tips = []
+        raw_title = title.get_text(strip=True) if title else "No title found"
+        raw_description = desc_div.get_text(strip=True) if desc_div else "No description available"
+
+        words = re.findall(r'\b[a-zA-Z]{3,}\b', (raw_title + " " + raw_description).lower())
+        keywords = sorted(set(words))
+
+        return jsonify({
+            "title": raw_title,
+            "keywords": keywords[:20],
+            "description_snippet": raw_description[:250]
+        })
+
+    except Exception as e:
+        app.logger.error(f"Error analyzing listing URL: {str(e)}")
+        return jsonify({"error": "Server error", "details": str(e)}), 500
         
         # Analyze title length (should be between 30-80 characters for optimal visibility)
         title_length = len(title)
