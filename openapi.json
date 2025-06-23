@@ -1,0 +1,127 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "eBay API Integration",
+    "version": "1.0.0",
+    "description": "API để tích hợp với eBay API cho việc tìm kiếm sản phẩm, lấy thông tin chi tiết và phân tích listing"
+  },
+  "paths": {
+    "/search": {
+      "get": {
+        "summary": "Tìm kiếm sản phẩm trên eBay",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "type": "string",
+            "description": "Từ khóa tìm kiếm"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "default": 5,
+            "description": "Số lượng kết quả tối đa"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Kết quả tìm kiếm thành công"
+          },
+          "400": {
+            "description": "Yêu cầu không hợp lệ"
+          },
+          "500": {
+            "description": "Lỗi server"
+          }
+        }
+      }
+    },
+    "/item": {
+      "get": {
+        "summary": "Lấy thông tin chi tiết sản phẩm",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "type": "string",
+            "description": "ID sản phẩm eBay"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Thông tin chi tiết sản phẩm"
+          },
+          "400": {
+            "description": "Yêu cầu không hợp lệ"
+          },
+          "500": {
+            "description": "Lỗi server"
+          }
+        }
+      }
+    },
+    "/category": {
+      "get": {
+        "summary": "Gợi ý danh mục dựa trên từ khóa",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "type": "string",
+            "description": "Từ khóa danh mục"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Gợi ý danh mục thành công"
+          },
+          "400": {
+            "description": "Yêu cầu không hợp lệ"
+          },
+          "500": {
+            "description": "Lỗi server"
+          }
+        }
+      }
+    },
+    "/analyze-listing": {
+      "post": {
+        "summary": "Phân tích listing eBay từ URL",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "description": "URL của listing eBay"
+                }
+              },
+              "required": ["url"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Phân tích thành công"
+          },
+          "400": {
+            "description": "URL không hợp lệ"
+          },
+          "500": {
+            "description": "Lỗi server"
+          }
+        }
+      }
+    }
+  }
+}
+
