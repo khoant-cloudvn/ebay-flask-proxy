@@ -3,13 +3,13 @@ import json
 import time
 import requests
 import logging
+import re
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
 from flasgger import Swagger
 import base64
 from bs4 import BeautifulSoup
-import re
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
