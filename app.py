@@ -1,8 +1,8 @@
-# app.py
 import os
 import json
 import time
 import requests
+import logging
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
@@ -13,13 +13,17 @@ import re
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
-from app.config import Config
-from app.services.ebay_service import EbayService
-from app.utils.error_handlers import (
+from config import Config
+from services.ebay_service import EbayService
+from utils.error_handlers import (
     EbayApiError, ValidationError,
     handle_ebay_api_error, handle_validation_error,
     handle_not_found, handle_server_error
 )
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, filename='app.log', format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
@@ -44,17 +48,21 @@ limiter = Limiter(
 )
 
 # Load OpenAPI specification
-with open('openapi.json', 'r') as f:
-    swagger_config = json.load(f)
-
-swagger = Swagger(app, template=swagger_config)
+try:
+    with open('openapi.json', 'r') as f:
+        swagger_config = json.load(f)
+    swagger = Swagger(app, template=swagger_config)
+    logger.info("Swagger initialized successfully")
+except Exception as e:
+    logger.error(f"Failed to initialize Swagger: {str(e)}")
+    raise
 
 # Initialize eBay service
 ebay_service = EbayService()
 
 # eBay API configuration
-EBAY_APP_ID = os.environ.get('KhoaNgoT-Applicat-SBX-3f7536b3f-b7ef7691')
-EBAY_CLIENT_SECRET = os.environ.get('SBX-f7536b3fdc5b-a74e-4ff6-94b3-e86d')
+EBAY_APP_ID = os.environ.get('EBAY_APP_ID')
+EBAY_CLIENT_SECRET = os.environ.get('EBAY_CLIENT_SECRET')
 EBAY_OAUTH_URL = 'https://api.ebay.com/identity/v1/oauth2/token'
 EBAY_SEARCH_URL = 'https://api.ebay.com/buy/browse/v1/item_summary/search'
 EBAY_ITEM_URL = 'https://api.ebay.com/buy/browse/v1/item/'
@@ -94,12 +102,12 @@ def get_ebay_token():
         
         response_data = response.json()
         access_token = response_data['access_token']
-        # Convert expires_in (in seconds) to epoch time and subtract 5 minutes for safety
         token_expiry = now + response_data['expires_in'] - (5 * 60)
         
+        logger.info("Successfully retrieved eBay OAuth token")
         return access_token
     except Exception as e:
-        app.logger.error(f'Error getting eBay token: {str(e)}')
+        logger.error(f'Error getting eBay token: {str(e)}')
         raise Exception('Failed to authenticate with eBay API')
 
 @app.route('/search', methods=['GET'])
@@ -136,13 +144,14 @@ def search_products():
             raise ValidationError('Search query is required')
         
         results = ebay_service.search_products(q, limit)
+        logger.info(f"Search query '{q}' returned {len(results.get('items', []))} results")
         return jsonify(results)
     except ValidationError as e:
         return handle_validation_error(e)
     except EbayApiError as e:
         return handle_ebay_api_error(e)
     except Exception as e:
-        app.logger.error(f'Error searching products: {str(e)}')
+        logger.error(f'Error searching products: {str(e)}')
         return handle_server_error(e)
 
 @app.route('/item', methods=['GET'])
@@ -172,13 +181,14 @@ def get_item_details():
             raise ValidationError('Item ID is required')
         
         details = ebay_service.get_item_details(item_id)
+        logger.info(f"Retrieved details for item ID {item_id}")
         return jsonify(details)
     except ValidationError as e:
         return handle_validation_error(e)
     except EbayApiError as e:
         return handle_ebay_api_error(e)
     except Exception as e:
-        app.logger.error(f'Error getting item details: {str(e)}')
+        logger.error(f'Error getting item details: {str(e)}')
         return handle_server_error(e)
 
 @app.route('/category', methods=['GET'])
@@ -208,13 +218,14 @@ def suggest_category():
             raise ValidationError('Query is required')
         
         suggestions = ebay_service.suggest_category(q)
+        logger.info(f"Category suggestions generated for query '{q}'")
         return jsonify(suggestions)
     except ValidationError as e:
         return handle_validation_error(e)
     except EbayApiError as e:
         return handle_ebay_api_error(e)
     except Exception as e:
-        app.logger.error(f'Error suggesting category: {str(e)}')
+        logger.error(f'Error suggesting category: {str(e)}')
         return handle_server_error(e)
 
 @app.route('/analyze-listing', methods=['POST'])
@@ -249,6 +260,8 @@ def analyze_listing():
         
         if not url:
             raise ValidationError("Missing URL")
+        if not re.match(r'^https?://(www\.)?ebay\.com/itm/', url):
+            raise ValidationError("Invalid eBay listing URL")
 
         response = requests.get(url, headers={"User-Agent": "Mozilla/5.0"})
         if response.status_code != 200:
@@ -264,15 +277,17 @@ def analyze_listing():
         words = re.findall(r'\b[a-zA-Z]{3,}\b', (raw_title + " " + raw_description).lower())
         keywords = sorted(set(words))
 
-        return jsonify({
+        result = {
             "title": raw_title,
             "keywords": keywords[:20],
             "description_snippet": raw_description[:250]
-        })
+        }
+        logger.info(f"Analyzed listing URL: {url}")
+        return jsonify(result)
     except ValidationError as e:
         return handle_validation_error(e)
     except Exception as e:
-        app.logger.error(f"Error analyzing listing URL: {str(e)}")
+        logger.error(f"Error analyzing listing URL: {str(e)}")
         return handle_server_error(e)
 
 # Register error handlers
@@ -283,4 +298,4 @@ if __name__ == '__main__':
     app.run(host='0.0.0.0', port=Config.PORT, debug=Config.DEBUG)
 
 # Alias for Gunicorn compatibility
-your_application = app    
+your_application = app
