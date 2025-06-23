@@ -5,4 +5,5 @@ requests==2.31.0
 flasgger==0.9.5 
 gunicorn==21.2.0 
 beautifulsoup4==4.12.2 
-flask-limiter==3.5.0
+flask-limiter==3.5.0 
+werkzeug==2.0.3
