@@ -1,0 +1,10 @@
+# Ignore environment files and Python cache
+.env
+.env.*
+__pycache__/
+*.pyc
+instance/
+
+# Optional: local IDE files
+.vscode/
+.idea/

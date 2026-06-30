@@ -54,61 +54,18 @@ try:
     swagger = Swagger(app, template=swagger_config)
     logger.info("Swagger initialized successfully")
 except Exception as e:
-    logger.error(f"Failed to initialize Swagger: {str(e)}")
-    raise
+    logger.warning(f"Failed to initialize Swagger, continuing without it: {str(e)}")
 
 # Initialize eBay service
 ebay_service = EbayService()
 
-# eBay API configuration
-EBAY_APP_ID = os.environ.get('EBAY_APP_ID')
-EBAY_CLIENT_SECRET = os.environ.get('EBAY_CLIENT_SECRET')
-EBAY_OAUTH_URL = 'https://api.ebay.com/identity/v1/oauth2/token'
-EBAY_SEARCH_URL = 'https://api.ebay.com/buy/browse/v1/item_summary/search'
-EBAY_ITEM_URL = 'https://api.ebay.com/buy/browse/v1/item/'
-EBAY_CATEGORY_URL = 'https://api.ebay.com/commerce/taxonomy/v1/category_tree/0/get_category_suggestions'
+# eBay API configuration (kept for reference; service uses env vars)
+EBAY_OAUTH_URL = Config.EBAY_OAUTH_URL
+EBAY_SEARCH_URL = Config.EBAY_SEARCH_URL
+EBAY_ITEM_URL = Config.EBAY_ITEM_URL
+EBAY_CATEGORY_URL = Config.EBAY_CATEGORY_URL
 
-# Token cache
-access_token = None
-token_expiry = 0
-
-def get_ebay_token():
-    """
-    Get OAuth token from eBay API
-    Returns a valid access token
-    """
-    global access_token, token_expiry
-    now = time.time()
-    
-    if access_token and token_expiry > now:
-        return access_token
-    
-    try:
-        auth_string = f"{EBAY_APP_ID}:{EBAY_CLIENT_SECRET}"
-        encoded_auth = base64.b64encode(auth_string.encode()).decode()
-        
-        headers = {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Authorization': f'Basic {encoded_auth}'
-        }
-        
-        data = {
-            'grant_type': 'client_credentials',
-            'scope': 'https://api.ebay.com/oauth/api_scope'
-        }
-        
-        response = requests.post(EBAY_OAUTH_URL, headers=headers, data=data)
-        response.raise_for_status()
-        
-        response_data = response.json()
-        access_token = response_data['access_token']
-        token_expiry = now + response_data['expires_in'] - (5 * 60)
-        
-        logger.info("Successfully retrieved eBay OAuth token")
-        return access_token
-    except Exception as e:
-        logger.error(f'Error getting eBay token: {str(e)}')
-        raise Exception('Failed to authenticate with eBay API')
+# Token cache handled in services/ebay_service.py
 
 @app.route('/search', methods=['GET'])
 @limiter.limit("30 per minute")
@@ -255,15 +212,16 @@ def analyze_listing():
         description: Server error
     """
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
         url = data.get("url")
         
         if not url:
             raise ValidationError("Missing URL")
-        if not re.match(r'^https?://(www\.)?ebay\.com/itm/', url):
+        # allow ebay.* domains
+        if not re.match(r'^https?://(www\.)?ebay\.[a-z.]{2,6}/itm/', url):
             raise ValidationError("Invalid eBay listing URL")
 
-        response = requests.get(url, headers={"User-Agent": "Mozilla/5.0"})
+        response = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
         if response.status_code != 200:
             raise ValidationError("Listing URL not available or removed")
 
